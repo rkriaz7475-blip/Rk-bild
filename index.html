@@ -69,20 +69,32 @@ const PAGES=[["home","Home","Home"],["cards","Cards","Player Cards"],["store","S
 const DESIGNS={classic:["#f1ce72","#7a5a14"],night:["#8fb4ff","#2a3f8f"],pitch:["#7fe0a0","#1f6a3a"],flame:["#ffb06a","#a33a10"]};
 const MAX=26,CLAIM=10;
 const S={bdt:100,coins:0,claimedOn:null,mine:null,owned:[],log:[],th:{}};
-const esc=s=>s.replace(/[&<>"]/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[ch]));
+const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[ch]));
 const names=["Kael Varrun","Ibo Sarnet","Dax Moreno","Lio Tamarin","Zane Okoro","Rafe Delmont","Niko Brandt","Ari Voss","Teo Halden","Sami Quill","Jory Penn","Milo Arden"];
 const POS=["GK","CB","LB","RB","CDM","CM","CAM","LW","RW","ST"];
 const STORE=names.map((n,i)=>({id:"S"+(1000+i),name:n,pos:POS[(i*3)%10],no:i+2,ovr:50+i%6,design:Object.keys(DESIGNS)[i%4],price:15+i*5,seller:i%3?"Player "+(300+i):"Arena Store"}));
 const $=s=>document.querySelector(s);
 const toast=m=>{const t=$("#toast");t.textContent=m;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),2200)};
+/* Stage 1 persistence: state is saved in this browser (localStorage) until the Stage 2 database arrives. */
+const LS_KEY="fca-arena-v1";
+function save(){try{localStorage.setItem(LS_KEY,JSON.stringify(S))}catch(e){try{const c=Object.assign({},S);if(c.mine){c.mine=Object.assign({},c.mine);delete c.mine.photo}localStorage.setItem(LS_KEY,JSON.stringify(c))}catch(e2){}}}
+function load(){let d;try{d=JSON.parse(localStorage.getItem(LS_KEY))}catch(e){return}if(!d||typeof d!=="object")return;
+ if(typeof d.bdt==="number"&&isFinite(d.bdt)&&d.bdt>=0)S.bdt=d.bdt;
+ if(typeof d.coins==="number"&&isFinite(d.coins)&&d.coins>=0)S.coins=d.coins;
+ if((typeof d.claimedOn==="number"&&Number.isInteger(d.claimedOn))||d.claimedOn===null)S.claimedOn=d.claimedOn;
+ if(Array.isArray(d.owned))S.owned=d.owned.filter(o=>o&&typeof o==="object");
+ if(Array.isArray(d.log))S.log=d.log.filter(x=>typeof x==="string");
+ if(d.th&&typeof d.th==="object")S.th=d.th;
+ if(d.mine&&typeof d.mine==="object"){const m=d.mine;S.mine={id:typeof m.id==="string"?m.id:"",name:typeof m.name==="string"?m.name.slice(0,24):"",pos:POS.includes(m.pos)?m.pos:"ST",no:(typeof m.no==="number"&&Number.isInteger(m.no)&&m.no>=1&&m.no<=99)?m.no:10,ovr:50,design:Object.keys(DESIGNS).includes(m.design)?m.design:"classic",color:/^#[0-9a-fA-F]{6}$/.test(m.color||"")?m.color:"#f1ce72",pub:m.pub!==false,photo:typeof m.photo==="string"?m.photo:null}}}
+load();
 const ini=n=>n.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
 function cardHTML(c,sm){const[d1,d2]=DESIGNS[c.design]||DESIGNS.classic;const col=c.color||d1;
- return `<div class="card ${sm?"sm":""} d-${c.design}" style="--c1:${col};--c2:${d2}"><div class="in"><div class="ovr">${c.ovr}</div><div class="pos">${c.pos}</div><div class="no">${c.no}</div><div class="ph" style="${c.photo?`background-image:url(${c.photo})`:""}">${c.photo?"":ini(c.name||"?")}</div><div class="nm">${c.name||"Your name"}</div></div></div>`}
+ return `<div class="card ${sm?"sm":""} d-${c.design}" style="--c1:${col};--c2:${d2}"><div class="in"><div class="ovr">${c.ovr}</div><div class="pos">${c.pos}</div><div class="no">${c.no}</div><div class="ph" style="${c.photo?`background-image:url(${c.photo})`:""}">${c.photo?"":esc(ini(c.name||"?"))}</div><div class="nm">${esc(c.name)||"Your name"}</div></div></div>`}
 function nav(){const h=(location.hash.slice(1)||"home").split("/")[0];$("#nav").innerHTML=PAGES.map(p=>`<a href="#${p[0]}" class="${h==p[0]?"on":""}"><span class="short">${p[1]}</span><span class="full">${p[2]}</span></a>`).join("");$("#wallet").textContent=`${S.bdt} BDT · ${S.coins} coins`;return h}
 function dhakaDay(t){return Math.floor((t+6*36e5)/864e5)}
 function nextReset(){return(dhakaDay(Date.now())+1)*864e5-6*36e5}
 const V={
-home:()=>`<div class="note">Stage 1 preview: the layout runs in your browser only. Nothing is saved until the database arrives in Stage 2. Demo balance is not real money.</div>
+home:()=>`<div class="note">Stage 1 preview: your card, collection and coins are saved in this browser only. The database arrives in Stage 2. Demo balance is not real money.</div>
 <section class="hero"><div><h1>Build your card. Trade the rest.</h1><p>Create one personal player card, earn coins every day in Bangladesh time, and collect up to 26 cards.</p><div class="row"><a class="btn" href="#me">Create my card</a><a class="btn ghost" href="#store">Open the store</a></div></div>
 <div class="stage" id="stage">${cardHTML(S.mine||{name:"Arena Debut",pos:"ST",no:9,ovr:50,design:"classic"})}</div></section>`,
 cards:()=>`<h2>Player Cards</h2><p class="pos">Public cards. Private cards never appear here.</p><div class="grid">${STORE.slice(0,8).map(c=>cardHTML(c,1)).join("")}${S.mine&&S.mine.pub?cardHTML(S.mine,1):""}</div>`,
@@ -91,17 +103,17 @@ coll:()=>`<h2>My Collection</h2><div class="stat">${S.owned.length}/${MAX}</div>
 claim:()=>{const done=S.claimedOn===dhakaDay(Date.now());return `<h2>Daily Claim</h2><div class="panel"><div class="stat">${S.coins} coins</div><p class="pos">Resets at midnight Bangladesh time. Next claim: ${done?new Date(nextReset()).toLocaleString("en-GB",{timeZone:"Asia/Dhaka",hour:"2-digit",minute:"2-digit",day:"numeric",month:"short"})+" (Dhaka)":"available now"}</p><button class="btn" id="claim" ${done?"disabled":""}>${done?"Claimed today":"Claim "+CLAIM+" coins"}</button></div><h3 style="margin:22px 0 8px">History</h3>${S.log.length?S.log.map(l=>`<div class="meta panel" style="margin-bottom:8px"><span>${l}</span><span class="price">+${CLAIM}</span></div>`).join(""):`<p class="pos">Your claims will appear here.</p>`}`},
 msgs:()=>{const id=location.hash.split("/")[1];
  if(id){const c=STORE.find(x=>x.id==id);if(!c)return `<h2>Messages</h2><p class="pos">This listing no longer exists.</p>`;const t=S.th[id]||[];
- return `<a class="pos" href="#msgs">Back to messages</a><div class="chat"><div class="meta panel"><span><b>${c.name}</b> · ${c.price} BDT<br><span class="pos">Seller: ${c.seller}</span></span></div><div class="log" id="log">${t.length?t.map(m=>`<div class="bub me">${esc(m.t)}<small>${m.at}</small></div>`).join(""):`<p class="pos">Ask about this card. Keep the deal inside the Arena.</p>`}</div><form id="mf" class="row" style="flex-wrap:nowrap"><input id="mt" maxlength="300" placeholder="Write a message" autocomplete="off" required><button class="btn">Send</button></form></div>`}
- const ids=Object.keys(S.th);return `<h2>Messages</h2><div class="note">Preview: you can write to sellers, but replies need the database in Stage 2.</div>${ids.length?ids.map(i=>{const c=STORE.find(x=>x.id==i),l=S.th[i].slice(-1)[0];return `<a class="panel thr" href="#msgs/${i}"><b>${c.name}</b><span class="pos">You: ${esc(l.t)}</span></a>`}).join(""):`<p class="pos">No conversations yet. Open a card in the store and tap Message seller.</p><a class="btn" href="#store">Go to the store</a>`}`},
+ return `<a class="pos" href="#msgs">Back to messages</a><div class="chat"><div class="meta panel"><span><b>${esc(c.name)}</b> · ${c.price} BDT<br><span class="pos">Seller: ${c.seller}</span></span></div><div class="log" id="log">${t.length?t.map(m=>`<div class="bub me">${esc(m.t)}<small>${m.at}</small></div>`).join(""):`<p class="pos">Ask about this card. Keep the deal inside the Arena.</p>`}</div><form id="mf" class="row" style="flex-wrap:nowrap"><input id="mt" maxlength="300" placeholder="Write a message" autocomplete="off" required><button class="btn">Send</button></form></div>`}
+ const ids=Object.keys(S.th);return `<h2>Messages</h2><div class="note">Preview: you can write to sellers, but replies need the database in Stage 2.</div>${ids.length?ids.map(i=>{const c=STORE.find(x=>x.id==i),l=S.th[i].slice(-1)[0];return `<a class="panel thr" href="#msgs/${i}"><b>${esc(c.name)}</b><span class="pos">You: ${esc(l.t)}</span></a>`}).join(""):`<p class="pos">No conversations yet. Open a card in the store and tap Message seller.</p><a class="btn" href="#store">Go to the store</a>`}`},
 me:()=>{const m=S.mine||{name:"",pos:"ST",no:10,ovr:50,design:"classic",color:"#f1ce72",pub:true};return `<h2>My Profile</h2><p class="pos">${S.mine?"Edit your personal card. Rating cannot be changed by hand.":"You can create one personal card. Starting rating: 50."}</p><div class="edit"><form class="form panel" id="f">
 <label>Photograph<input type="file" id="ph" accept="image/jpeg,image/png,image/webp"></label>
-<label>Player name<input id="nm" maxlength="24" value="${m.name}" required></label>
+<label>Player name<input id="nm" maxlength="24" value="${esc(m.name)}" required></label>
 <div class="two"><label>Position<select id="ps">${POS.map(p=>`<option ${p==m.pos?"selected":""}>${p}</option>`).join("")}</select></label><label>Jersey number<input id="no" type="number" min="1" max="99" value="${m.no}"></label></div>
 <div class="two"><label>Card design<select id="ds">${Object.keys(DESIGNS).map(d=>`<option ${d==m.design?"selected":""}>${d}</option>`).join("")}</select></label><label>Card color<input id="cl" type="color" value="${m.color||"#f1ce72"}"></label></div>
 <label>Visibility<select id="vs"><option value="1" ${m.pub?"selected":""}>Public: appears in gallery and search</option><option value="0" ${m.pub?"":"selected"}>Private: only you can see it</option></select></label>
 <button class="btn">${S.mine?"Save changes":"Create my card"}</button></form><div class="stage"><div id="pv"></div></div></div>`}
 };
-function render(){const h=nav();$("#app").innerHTML=(V[h]||V.home)();bind(h)}
+function render(){const h=nav();$("#app").innerHTML=(V[h]||V.home)();bind(h);save()}
 function bind(h){
  if(h=="home"){const st=$("#stage"),c=st.firstElementChild;st.onpointermove=e=>{const r=st.getBoundingClientRect(),x=(e.clientX-r.left)/r.width-.5,y=(e.clientY-r.top)/r.height-.5;c.style.transform=`rotateY(${x*28}deg) rotateX(${-y*28}deg)`};st.onpointerleave=()=>c.style.transform=""}
  if(h=="store")document.querySelectorAll("[data-buy]").forEach(b=>b.onclick=()=>{const c=STORE.find(x=>x.id==b.dataset.buy);if(S.owned.length>=MAX||S.bdt<c.price||S.owned.some(o=>o.id==c.id))return;S.bdt-=c.price;S.owned.push(c);toast("Added to your collection");render()});
@@ -111,7 +123,7 @@ function bind(h){
   const pv=()=>$("#pv").innerHTML=cardHTML(cur());pv();
   document.querySelectorAll("#f input,#f select").forEach(e=>e.oninput=pv);
   $("#ph").onchange=e=>{const f=e.target.files[0];if(!f)return;if(!/^image\/(jpeg|png|webp)$/.test(f.type)||f.size>3e6){toast("Use a JPG, PNG or WebP under 3 MB");e.target.value="";return}const r=new FileReader();r.onload=()=>{photo=r.result;pv()};r.readAsDataURL(f)};
-  $("#f").onsubmit=e=>{e.preventDefault();const c=cur();if(!c.name){toast("Enter a player name");return}S.mine=c;toast(S.mine?"Card saved":"Card created");render()}}
+  $("#f").onsubmit=e=>{e.preventDefault();const c=cur();if(!c.name){toast("Enter a player name");return}const no=Number(c.no);if(!Number.isInteger(no)||no<1||no>99){toast("Jersey number must be 1–99");return}c.no=no;const had=!!S.mine;S.mine=c;toast(had?"Card saved":"Card created");render()}}
 }
 addEventListener("hashchange",render);render();
 </script>
